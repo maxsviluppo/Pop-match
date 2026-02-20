@@ -66,9 +66,25 @@ const playWin = () => {
   playTone(659.25, 'square', 0.4, 0.6);
   playTone(783.99, 'square', 0.4, 1.0);
 };
+
+const playSelect = (index: number) => {
+  if (!audioCtx) return;
+  // Pentatonic scale for selection sounds
+  const scale = [261.63, 293.66, 329.63, 392.00, 440.00];
+  const freq = scale[index % scale.length] * Math.pow(2, Math.floor(index / scale.length));
+  playTone(freq, 'sine', 0.1);
+};
+
+const playRainbow = () => {
+  // Energetic, sparkly sound
+  for (let i = 0; i < 8; i++) {
+    playTone(523.25 * Math.pow(1.2, i), 'sine', 0.1, i * 0.05);
+    playTone(523.25 * Math.pow(1.2, i) * 1.5, 'triangle', 0.05, i * 0.05);
+  }
+};
 // --- END AUDIO SYSTEM ---
 
-type BallColor = 'red' | 'blue' | 'yellow' | 'green' | 'purple';
+type BallColor = 'red' | 'blue' | 'yellow' | 'green' | 'purple' | 'rainbow' | 'special';
 
 interface Ball {
   id: string;
@@ -86,7 +102,7 @@ interface Effect {
 
 interface LevelConfig {
   moves: number;
-  targets: Partial<Record<BallColor, number>>;
+  targets: Partial<Record<Exclude<BallColor, 'rainbow' | 'special'>, number>>;
 }
 
 const ROWS = 8;
@@ -107,6 +123,8 @@ const COLOR_CLASSES: Record<BallColor, string> = {
   yellow: 'bg-[#ffcc00]',
   green: 'bg-[#33ff33]',
   purple: 'bg-[#cc33ff]',
+  rainbow: 'bg-gradient-to-tr from-red-500 via-green-500 to-blue-500',
+  special: 'bg-[#ff8800] border-white/50',
 };
 
 const COMIC_WORDS = ['POP!', 'POW!', 'BOOM!', 'ZAP!', 'BANG!', 'WOW!'];
@@ -114,7 +132,7 @@ const BONUS_WORDS = ['AMAZING!', 'SUPER!', 'FANTASTIC!', 'UNBELIEVABLE!', 'KABOO
 
 const generateGrid = (rows: number, cols: number): (Ball | null)[][] => {
   const grid: (Ball | null)[][] = [];
-  const colors = Object.keys(COLOR_CLASSES) as BallColor[];
+  const colors: BallColor[] = ['red', 'blue', 'yellow', 'green', 'purple'];
   for (let r = 0; r < rows; r++) {
     const row: (Ball | null)[] = [];
     for (let c = 0; c < cols; c++) {
@@ -148,6 +166,12 @@ export default function App() {
     else if (gameState === 'lost') playGameOver();
   }, [gameState]);
 
+  useEffect(() => {
+    if (isDragging && selection.length > 0) {
+      playSelect(selection.length - 1);
+    }
+  }, [selection.length, isDragging]);
+
   const handleCellEnter = useCallback((r: number, c: number) => {
     if (gameState !== 'playing') return;
     
@@ -170,11 +194,30 @@ export default function App() {
 
       if (isAdjacent) {
         const ball = grid[r][c];
-        const firstBall = grid[prev[0].r][prev[0].c];
+        if (!ball) return prev;
 
-        if (ball && firstBall && ball.color === firstBall.color) {
-          return [...prev, { r, c }];
+        // Find the target color of the current chain
+        let targetColor: BallColor | null = null;
+        for (const s of prev) {
+          const b = grid[s.r][s.c];
+          if (b && b.color !== 'rainbow' && b.color !== 'special') {
+            targetColor = b.color;
+            break;
+          }
         }
+
+        // Logic for connecting:
+        // 1. Rainbow can connect to anything.
+        // 2. Special can connect if chain length >= 4.
+        // 3. If targetColor is null (only rainbows so far), anything can connect.
+        // 4. Otherwise, must match targetColor or be rainbow.
+
+        if (ball.color === 'rainbow') return [...prev, { r, c }];
+        if (ball.color === 'special') {
+          if (prev.length >= 4) return [...prev, { r, c }];
+          return prev;
+        }
+        if (!targetColor || ball.color === targetColor) return [...prev, { r, c }];
       }
 
       return prev;
@@ -203,7 +246,7 @@ export default function App() {
 
   const applyGravity = (currentGrid: (Ball | null)[][]) => {
     const newGrid = currentGrid.map((row) => [...row]);
-    const colors = Object.keys(COLOR_CLASSES) as BallColor[];
+    const colors: BallColor[] = ['red', 'blue', 'yellow', 'green', 'purple'];
 
     for (let c = 0; c < COLS; c++) {
       let emptySpaces = 0;
@@ -238,12 +281,14 @@ export default function App() {
       ? BONUS_WORDS[Math.floor(Math.random() * BONUS_WORDS.length)]
       : COMIC_WORDS[Math.floor(Math.random() * COMIC_WORDS.length)];
 
+    const effectColor = color === 'rainbow' ? '#ffffff' : (COLOR_CLASSES[color as BallColor]?.replace('bg-[', '').replace(']', '') || '#ffffff');
+
     const newEffect: Effect = {
       id: Math.random().toString(),
       x,
       y,
       text,
-      color: COLOR_CLASSES[color as BallColor].replace('bg-[', '').replace(']', ''),
+      color: effectColor,
       isBonus
     };
 
@@ -261,13 +306,16 @@ export default function App() {
       const firstBall = grid[selection[0].r][selection[0].c];
       if (firstBall) {
         const color = firstBall.color;
-        const isBonus = selection.length > 5;
+        const isBonus = selection.length >= 5;
+        const isSuperBonus = selection.length >= 10;
 
         const centerIdx = Math.floor(selection.length / 2);
         const centerCell = selection[centerIdx];
         triggerExplosion(centerCell.r, centerCell.c, color, isBonus);
         
-        if (isBonus) {
+        if (isSuperBonus) {
+          playRainbow();
+        } else if (isBonus) {
           playBonus();
         } else {
           playPop(selection.length);
@@ -279,16 +327,28 @@ export default function App() {
         }
 
         let newGrid = grid.map((row) => [...row]);
-        selection.forEach(({ r, c }) => {
-          newGrid[r][c] = null;
+        
+        // Clear balls, but handle special/rainbow creation
+        selection.forEach(({ r, c }, index) => {
+          if (index === selection.length - 1) {
+            if (isSuperBonus) {
+              newGrid[r][c] = { id: `rainbow-${Date.now()}`, color: 'rainbow' };
+            } else if (isBonus) {
+              newGrid[r][c] = { id: `special-${Date.now()}`, color: 'special' };
+            } else {
+              newGrid[r][c] = null;
+            }
+          } else {
+            newGrid[r][c] = null;
+          }
         });
 
         newGrid = applyGravity(newGrid);
         setGrid(newGrid);
         
-        // Bonus score
+        // Score calculation
         const baseScore = selection.length * 10;
-        const bonusMultiplier = isBonus ? 2 : 1;
+        const bonusMultiplier = isSuperBonus ? 4 : (isBonus ? 2 : 1);
         setScore((s) => s + baseScore * bonusMultiplier);
         
         const newMoves = moves - 1;
@@ -296,8 +356,29 @@ export default function App() {
 
         setTargets((prev) => {
           const newTargets = { ...prev };
-          if (newTargets[color] !== undefined) {
-            newTargets[color] = Math.max(0, newTargets[color]! - selection.length);
+          
+          // Check if rainbow was used in the selection
+          const usedRainbow = selection.some(s => grid[s.r][s.c]?.color === 'rainbow');
+
+          if (usedRainbow) {
+            // Rainbow contributes to ALL targets!
+            Object.keys(newTargets).forEach(color => {
+              newTargets[color as BallColor] = Math.max(0, newTargets[color as BallColor]! - selection.length);
+            });
+          } else {
+            // Normal chain logic
+            let chainColor: BallColor | null = null;
+            for (const s of selection) {
+              const b = grid[s.r][s.c];
+              if (b && b.color !== 'rainbow' && b.color !== 'special') {
+                chainColor = b.color;
+                break;
+              }
+            }
+
+            if (chainColor && newTargets[chainColor] !== undefined) {
+              newTargets[chainColor] = Math.max(0, newTargets[chainColor]! - selection.length);
+            }
           }
           
           const isWon = Object.values(newTargets).every(count => count === 0);
@@ -381,17 +462,6 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 font-sans select-none overflow-hidden relative">
       
-      {/* Home Button (Top Right) */}
-      {gameState !== 'home' && (
-        <button 
-          onClick={goToHome}
-          className="absolute top-4 right-4 z-50 bg-white p-2 rounded-xl comic-border hover:bg-gray-100 transition-all hover:scale-110 active:scale-95 shadow-lg"
-          title="Home"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        </button>
-      )}
-
       {/* Header */}
       <div className="w-full max-w-md mb-4 flex justify-between items-end z-10">
         <div className="flex flex-col">
@@ -418,7 +488,16 @@ export default function App() {
         </div>
 
         {gameState !== 'home' && (
-          <div className="flex gap-2 sm:gap-3 bg-white p-2 sm:p-3 comic-border rounded-xl transform rotate-1">
+          <div className="flex items-center gap-2 sm:gap-3 bg-white p-2 sm:p-3 comic-border rounded-xl transform rotate-1 shadow-lg">
+            {/* Integrated Home Button */}
+            <button 
+              onClick={goToHome}
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors border-r-2 border-gray-200 pr-2 mr-1"
+              title="Home"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </button>
+
             {Object.entries(targets).map(([color, count]) => {
               const isCompleted = count === 0;
               return (
@@ -528,8 +607,21 @@ export default function App() {
                           ${COLOR_CLASSES[ball.color]}
                           ${isSelected(r, c) ? 'scale-110 z-10 brightness-110' : 'hover:brightness-110'}
                           cursor-pointer transition-all duration-100 pointer-events-none
+                          ${ball.color === 'rainbow' ? 'animate-pulse' : ''}
                         `}
                       >
+                        {ball.color === 'special' && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-2/3 h-2/3 border-2 border-white/30 rounded-full flex items-center justify-center">
+                              <span className="font-comic text-white/50 text-xs">5+</span>
+                            </div>
+                          </div>
+                        )}
+                        {ball.color === 'rainbow' && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-3/4 h-3/4 border-2 border-white/50 rounded-full animate-spin-slow" />
+                          </div>
+                        )}
                         <div className="absolute top-1 left-1 w-3 h-3 bg-white rounded-full opacity-50" />
                         
                         {isSelected(r, c) && (

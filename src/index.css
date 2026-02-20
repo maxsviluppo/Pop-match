@@ -23,3 +23,12 @@ body {
   text-shadow: 3px 3px 0px #000;
   -webkit-text-stroke: 1px black;
 }
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
