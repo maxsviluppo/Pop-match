@@ -1,0 +1,5 @@
+{
+  "name": "Pop Match",
+  "description": "A comic-style color matching puzzle game where you clear specific targets by matching sequences of colored balls.",
+  "requestFramePermissions": []
+}
