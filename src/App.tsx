@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // --- AUDIO SYSTEM ---
 let audioCtx: AudioContext | null = null;
+let isMuted = false;
 
 const initAudio = () => {
   if (!audioCtx) {
@@ -13,8 +14,13 @@ const initAudio = () => {
   }
 };
 
+const toggleMute = () => {
+  isMuted = !isMuted;
+  return isMuted;
+};
+
 const playTone = (freq: number, type: OscillatorType, duration: number, startTimeOffset: number = 0) => {
-  if (!audioCtx) return;
+  if (!audioCtx || isMuted) return;
   const startTime = audioCtx.currentTime + startTimeOffset;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -39,10 +45,15 @@ const playPop = (count: number) => {
 };
 
 const playBonus = () => {
-  playTone(440, 'square', 0.1, 0);
-  playTone(554, 'square', 0.1, 0.1);
-  playTone(659, 'square', 0.1, 0.2);
-  playTone(880, 'square', 0.3, 0.3);
+  // Softer, smoother bonus sound using sine waves
+  playTone(440, 'sine', 0.2, 0);
+  playTone(554, 'sine', 0.2, 0.05);
+  playTone(659, 'sine', 0.2, 0.1);
+  playTone(880, 'sine', 0.4, 0.15);
+};
+
+const playClick = () => {
+  playTone(600, 'sine', 0.05);
 };
 
 const playLevelUp = () => {
@@ -76,10 +87,9 @@ const playSelect = (index: number) => {
 };
 
 const playRainbow = () => {
-  // Energetic, sparkly sound
+  // Softer, shimmering rainbow sound
   for (let i = 0; i < 8; i++) {
-    playTone(523.25 * Math.pow(1.2, i), 'sine', 0.1, i * 0.05);
-    playTone(523.25 * Math.pow(1.2, i) * 1.5, 'triangle', 0.05, i * 0.05);
+    playTone(523.25 * Math.pow(1.1, i), 'sine', 0.2, i * 0.04);
   }
 };
 // --- END AUDIO SYSTEM ---
@@ -124,11 +134,31 @@ const COLOR_CLASSES: Record<BallColor, string> = {
   green: 'bg-[#33ff33]',
   purple: 'bg-[#cc33ff]',
   rainbow: 'bg-gradient-to-tr from-red-500 via-green-500 to-blue-500',
-  special: 'bg-[#ff8800] border-white/50',
+  special: 'bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 border-yellow-700',
 };
 
-const COMIC_WORDS = ['POP!', 'POW!', 'BOOM!', 'ZAP!', 'BANG!', 'WOW!'];
-const BONUS_WORDS = ['AMAZING!', 'SUPER!', 'FANTASTIC!', 'UNBELIEVABLE!', 'KABOOM!'];
+const EFFECT_COLORS: Record<BallColor, string> = {
+  red: '#ff3366',
+  blue: '#33ccff',
+  yellow: '#ffcc00',
+  green: '#33ff33',
+  purple: '#cc33ff',
+  rainbow: '#ffffff',
+  special: '#ffcc00',
+};
+
+const COMIC_WORDS = ['POP!', 'ZAP!', 'BAM!', 'WHAM!', 'SNAP!', 'PLOP!', 'Biff!', 'Clonk!', 'Thwack!'];
+const BONUS_WORDS = ['POW!', 'WOW!', 'BOOM!', 'BANG!', 'SMASH!', 'CRUNCH!', 'KRAK!', 'WHACK!'];
+const SUPER_WORDS = ['KABOOM!', 'INCREDIBLE!', 'UNSTOPPABLE!', 'MEGA POP!', 'HOLY COW!', 'ULTRA!', 'SUPREME!'];
+
+const BG_COLORS = [
+  '#4facfe', // Level 1 (Blue)
+  '#ff4f81', // Level 2 (Pink)
+  '#ffcc00', // Level 3 (Yellow)
+  '#ff8800', // Level 4 (Orange)
+  '#33ff33', // Level 5 (Green)
+  '#cc33ff', // Level 6 (Purple)
+];
 
 const generateGrid = (rows: number, cols: number): (Ball | null)[][] => {
   const grid: (Ball | null)[][] = [];
@@ -157,8 +187,14 @@ export default function App() {
   const [gameState, setGameState] = useState<'home' | 'playing' | 'won' | 'lost' | 'levelup'>('home');
   const [effects, setEffects] = useState<Effect[]>([]);
   const [shake, setShake] = useState(false);
+  const [muted, setMuted] = useState(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const bgColor = gameState === 'home' ? BG_COLORS[0] : BG_COLORS[level % BG_COLORS.length];
+    document.body.style.setProperty('--bg-color', bgColor);
+  }, [level, gameState]);
 
   useEffect(() => {
     if (gameState === 'levelup') playLevelUp();
@@ -212,11 +248,8 @@ export default function App() {
         // 3. If targetColor is null (only rainbows so far), anything can connect.
         // 4. Otherwise, must match targetColor or be rainbow.
 
-        if (ball.color === 'rainbow') return [...prev, { r, c }];
-        if (ball.color === 'special') {
-          if (prev.length >= 4) return [...prev, { r, c }];
-          return prev;
-        }
+        if (ball.color === 'rainbow' || ball.color === 'special') return [...prev, { r, c }];
+        
         if (!targetColor || ball.color === targetColor) return [...prev, { r, c }];
       }
 
@@ -268,34 +301,44 @@ export default function App() {
     return newGrid;
   };
 
-  const triggerExplosion = (r: number, c: number, color: string, isBonus: boolean) => {
+  const triggerExplosion = (r: number, c: number, color: string, selection: {r: number, c: number}[], delay: number = 0) => {
+    const isBonus = selection.length >= 5;
     const rect = gridRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const cellWidth = rect.width / COLS;
-    const cellHeight = rect.height / ROWS;
-    const x = c * cellWidth + cellWidth / 2;
-    const y = r * cellHeight + cellHeight / 2;
-
-    const text = isBonus 
-      ? BONUS_WORDS[Math.floor(Math.random() * BONUS_WORDS.length)]
-      : COMIC_WORDS[Math.floor(Math.random() * COMIC_WORDS.length)];
-
-    const effectColor = color === 'rainbow' ? '#ffffff' : (COLOR_CLASSES[color as BallColor]?.replace('bg-[', '').replace(']', '') || '#ffffff');
-
-    const newEffect: Effect = {
-      id: Math.random().toString(),
-      x,
-      y,
-      text,
-      color: effectColor,
-      isBonus
-    };
-
-    setEffects(prev => [...prev, newEffect]);
     setTimeout(() => {
-      setEffects(prev => prev.filter(e => e.id !== newEffect.id));
-    }, isBonus ? 1500 : 800);
+      const cellWidth = rect.width / COLS;
+      const cellHeight = rect.height / ROWS;
+      const x = c * cellWidth + cellWidth / 2;
+      const y = r * cellHeight + cellHeight / 2;
+
+      let text = '';
+      const length = selection.length;
+      
+      if (length >= 10) {
+        text = SUPER_WORDS[Math.floor(Math.random() * SUPER_WORDS.length)];
+      } else if (length >= 5) {
+        text = BONUS_WORDS[Math.floor(Math.random() * BONUS_WORDS.length)];
+      } else {
+        text = COMIC_WORDS[Math.floor(Math.random() * COMIC_WORDS.length)];
+      }
+
+      const effectColor = EFFECT_COLORS[color as BallColor] || '#ffffff';
+
+      const newEffect: Effect = {
+        id: Math.random().toString(),
+        x,
+        y,
+        text,
+        color: effectColor,
+        isBonus
+      };
+
+      setEffects(prev => [...prev, newEffect]);
+      setTimeout(() => {
+        setEffects(prev => prev.filter(e => e.id !== newEffect.id));
+      }, isBonus ? 1500 : 800);
+    }, delay);
   };
 
   const handlePointerUp = () => {
@@ -309,9 +352,22 @@ export default function App() {
         const isBonus = selection.length >= 5;
         const isSuperBonus = selection.length >= 10;
 
-        const centerIdx = Math.floor(selection.length / 2);
-        const centerCell = selection[centerIdx];
-        triggerExplosion(centerCell.r, centerCell.c, color, isBonus);
+        // Trigger multiple explosions for more "POW WOW" feel
+        if (isSuperBonus) {
+          // Trigger 3 explosions for super bonus
+          triggerExplosion(selection[0].r, selection[0].c, color, selection, 0);
+          triggerExplosion(selection[Math.floor(selection.length / 2)].r, selection[Math.floor(selection.length / 2)].c, color, selection, 150);
+          triggerExplosion(selection[selection.length - 1].r, selection[selection.length - 1].c, color, selection, 300);
+        } else if (isBonus) {
+          // Trigger 2 explosions for bonus
+          triggerExplosion(selection[0].r, selection[0].c, color, selection, 0);
+          triggerExplosion(selection[selection.length - 1].r, selection[selection.length - 1].c, color, selection, 200);
+        } else {
+          // Standard explosion at center
+          const centerIdx = Math.floor(selection.length / 2);
+          const centerCell = selection[centerIdx];
+          triggerExplosion(centerCell.r, centerCell.c, color, selection);
+        }
         
         if (isSuperBonus) {
           playRainbow();
@@ -357,8 +413,9 @@ export default function App() {
         setTargets((prev) => {
           const newTargets = { ...prev };
           
-          // Check if rainbow was used in the selection
+          // Check if rainbow or special was used in the selection
           const usedRainbow = selection.some(s => grid[s.r][s.c]?.color === 'rainbow');
+          const usedSpecial = selection.some(s => grid[s.r][s.c]?.color === 'special');
 
           if (usedRainbow) {
             // Rainbow contributes to ALL targets!
@@ -377,7 +434,9 @@ export default function App() {
             }
 
             if (chainColor && newTargets[chainColor] !== undefined) {
-              newTargets[chainColor] = Math.max(0, newTargets[chainColor]! - selection.length);
+              // Special ball doubles the impact on the target!
+              const multiplier = usedSpecial ? 2 : 1;
+              newTargets[chainColor] = Math.max(0, newTargets[chainColor]! - (selection.length * multiplier));
             }
           }
           
@@ -411,11 +470,13 @@ export default function App() {
 
   const startGame = () => {
     initAudio();
+    playClick();
     setGameState('playing');
   };
 
   const startNextLevel = () => {
     initAudio();
+    playClick();
     const nextLevel = level + 1;
     setLevel(nextLevel);
     setGrid(generateGrid(ROWS, COLS));
@@ -428,6 +489,7 @@ export default function App() {
 
   const resetGame = () => {
     initAudio();
+    playClick();
     setLevel(0);
     setGrid(generateGrid(ROWS, COLS));
     setScore(0);
@@ -440,12 +502,20 @@ export default function App() {
 
   const goToHome = () => {
     initAudio();
+    playClick();
     setGameState('home');
     setLevel(0);
     setScore(0);
     setMoves(LEVELS[0].moves);
     setTargets(LEVELS[0].targets);
     setGrid(generateGrid(ROWS, COLS));
+  };
+
+  const handleToggleMute = () => {
+    initAudio();
+    const newMuted = toggleMute();
+    setMuted(newMuted);
+    if (!newMuted) playClick();
   };
 
   const isSelected = (r: number, c: number) => {
@@ -456,7 +526,21 @@ export default function App() {
     return selection.findIndex((s) => s.r === r && s.c === c);
   };
 
-  const selectedColor = selection.length > 0 ? grid[selection[0].r][selection[0].c]?.color : null;
+  const isAdjacentToLast = (r: number, c: number) => {
+    if (selection.length === 0) return false;
+    const last = selection[selection.length - 1];
+    return Math.abs(last.r - r) <= 1 && Math.abs(last.c - c) <= 1 && !(last.r === r && last.c === c);
+  };
+
+  const getChainColor = () => {
+    for (const s of selection) {
+      const b = grid[s.r][s.c];
+      if (b && b.color !== 'rainbow' && b.color !== 'special') return b.color;
+    }
+    return null;
+  };
+
+  const chainColor = getChainColor();
   const isValidSelection = selection.length >= MIN_MATCH;
 
   return (
@@ -498,6 +582,19 @@ export default function App() {
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </button>
 
+            {/* Mute Toggle Button */}
+            <button 
+              onClick={handleToggleMute}
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors border-r-2 border-gray-200 pr-2 mr-1"
+              title={muted ? "Unmute" : "Mute"}
+            >
+              {muted ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              )}
+            </button>
+
             {Object.entries(targets).map(([color, count]) => {
               const isCompleted = count === 0;
               return (
@@ -534,7 +631,10 @@ export default function App() {
             </div>
           </div>
 
-          <h2 className="font-comic text-4xl mb-6 comic-text text-black">READY TO POP?</h2>
+          <h2 className="font-comic text-4xl mb-2 comic-text text-black uppercase">READY TO POP?</h2>
+          <div className="bg-gray-100 px-4 py-1 rounded-full comic-border mb-6">
+            <span className="font-comic text-xl text-gray-600">CURRENT LEVEL: {level + 1}</span>
+          </div>
           
           <div className="space-y-4 mb-8 text-left w-full">
             <div className="flex items-center gap-3">
@@ -603,18 +703,20 @@ export default function App() {
                           damping: 25
                         }}
                         className={`
-                          absolute inset-1 rounded-full border-[3px] border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]
+                          absolute inset-1 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]
+                          ${ball.color === 'special' ? 'rounded-lg rotate-45 border-[3px]' : 'rounded-full border-[3px]'}
                           ${COLOR_CLASSES[ball.color]}
                           ${isSelected(r, c) ? 'scale-110 z-10 brightness-110' : 'hover:brightness-110'}
                           cursor-pointer transition-all duration-100 pointer-events-none
-                          ${ball.color === 'rainbow' ? 'animate-pulse' : ''}
+                          ${(ball.color === 'rainbow' || ball.color === 'special') ? 'animate-pulse' : ''}
+                          ${isDragging && isAdjacentToLast(r, c) && (ball.color === 'rainbow' || ball.color === 'special' || !chainColor || ball.color === chainColor) ? 'ring-4 ring-white ring-opacity-70 scale-105' : ''}
                         `}
                       >
                         {ball.color === 'special' && (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-2/3 h-2/3 border-2 border-white/30 rounded-full flex items-center justify-center">
-                              <span className="font-comic text-white/50 text-xs">5+</span>
-                            </div>
+                          <div className="absolute inset-0 flex items-center justify-center -rotate-45">
+                            <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8 drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]">
+                              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                            </svg>
                           </div>
                         )}
                         {ball.color === 'rainbow' && (
@@ -638,7 +740,7 @@ export default function App() {
           </div>
 
           {/* Effects Layer */}
-          <div className="absolute inset-0 pointer-events-none overflow-visible">
+          <div className="absolute inset-0 pointer-events-none overflow-visible z-50">
             <AnimatePresence>
               {effects.map(effect => (
                 <motion.div
@@ -649,25 +751,29 @@ export default function App() {
                     opacity: [0, 1, 1, 0], 
                     rotate: effect.isBonus ? [0, 15, -15, 0] : 10 
                   }}
+                  transition={{ duration: 0.6, times: [0, 0.2, 0.8, 1] }}
                   exit={{ opacity: 0 }}
                   style={{ 
                     position: 'absolute',
                     left: effect.x,
                     top: effect.y,
                     transform: 'translate(-50%, -50%)',
-                    zIndex: 100
                   }}
                   className="flex items-center justify-center"
                 >
-                  <svg width={effect.isBonus ? "200" : "120"} height={effect.isBonus ? "200" : "120"} viewBox="0 0 100 100" className="absolute">
+                  <svg width={effect.isBonus ? "240" : "140"} height={effect.isBonus ? "240" : "140"} viewBox="0 0 100 100" className="absolute">
                     <path 
-                      d="M50 0 L60 35 L95 25 L75 50 L100 75 L65 65 L50 100 L35 65 L0 75 L25 50 L5 25 L40 35 Z" 
+                      d="M50 5 L62 38 L95 30 L78 52 L98 78 L65 70 L52 95 L38 70 L5 78 L25 52 L5 30 L38 38 Z" 
                       fill={effect.color} 
                       stroke="black" 
-                      strokeWidth="3"
+                      strokeWidth="4"
                     />
                     {effect.isBonus && (
-                      <circle cx="50" cy="50" r="30" fill="white" fillOpacity="0.2" stroke="white" strokeWidth="2" strokeDasharray="5,5" />
+                      <path 
+                        d="M50 15 L58 42 L85 35 L72 52 L88 72 L62 65 L50 85 L38 65 L12 72 L28 52 L15 35 L42 42 Z" 
+                        fill="white" 
+                        fillOpacity="0.3" 
+                      />
                     )}
                   </svg>
                   <span className={`font-comic ${effect.isBonus ? 'text-4xl' : 'text-3xl'} text-white comic-text relative z-10 whitespace-nowrap`}>
@@ -679,7 +785,7 @@ export default function App() {
           </div>
 
           {/* Selection Status Overlay */}
-          {isDragging && selectedColor && (
+          {isDragging && (selection.length > 0) && (
             <div className="absolute -bottom-12 left-0 right-0 flex justify-center pointer-events-none z-20">
               <motion.div 
                 initial={{ y: -10, opacity: 0 }}
