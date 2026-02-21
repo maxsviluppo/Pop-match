@@ -95,10 +95,12 @@ const playRainbow = () => {
 // --- END AUDIO SYSTEM ---
 
 type BallColor = 'red' | 'blue' | 'yellow' | 'green' | 'purple' | 'rainbow' | 'special';
+type PowerupType = 'moves' | 'multiplier' | 'bomb';
 
 interface Ball {
   id: string;
   color: BallColor;
+  powerup?: PowerupType;
 }
 
 interface Effect {
@@ -127,6 +129,31 @@ const LEVELS: LevelConfig[] = [
   { moves: 12, targets: { yellow: 30, red: 25, blue: 20, green: 15, purple: 10 } },
 ];
 
+const generateLevelConfig = (levelIndex: number): LevelConfig => {
+  if (levelIndex < LEVELS.length) {
+    return LEVELS[levelIndex];
+  }
+  
+  const baseTargets = 20 + Math.floor((levelIndex - LEVELS.length + 1) * 5);
+  const numColors = Math.min(5, 3 + Math.floor(levelIndex / 3));
+  
+  const colors: (Exclude<BallColor, 'rainbow' | 'special'>)[] = ['red', 'blue', 'yellow', 'green', 'purple'];
+  const shuffledColors = [...colors].sort(() => Math.random() - 0.5).slice(0, numColors);
+  
+  const targets: Partial<Record<Exclude<BallColor, 'rainbow' | 'special'>, number>> = {};
+  
+  let totalTargets = 0;
+  shuffledColors.forEach((color) => {
+    const count = Math.floor(baseTargets / numColors) + Math.floor(Math.random() * 5);
+    targets[color] = count;
+    totalTargets += count;
+  });
+
+  const moves = Math.max(12, Math.floor(totalTargets / 3) + 2);
+
+  return { moves, targets };
+};
+
 const COLOR_CLASSES: Record<BallColor, string> = {
   red: 'bg-[#ff3366]',
   blue: 'bg-[#33ccff]',
@@ -147,9 +174,9 @@ const EFFECT_COLORS: Record<BallColor, string> = {
   special: '#ffcc00',
 };
 
-const COMIC_WORDS = ['POP!', 'ZAP!', 'BAM!', 'WHAM!', 'SNAP!', 'PLOP!', 'Biff!', 'Clonk!', 'Thwack!'];
-const BONUS_WORDS = ['POW!', 'WOW!', 'BOOM!', 'BANG!', 'SMASH!', 'CRUNCH!', 'KRAK!', 'WHACK!'];
-const SUPER_WORDS = ['KABOOM!', 'INCREDIBLE!', 'UNSTOPPABLE!', 'MEGA POP!', 'HOLY COW!', 'ULTRA!', 'SUPREME!'];
+const COMIC_WORDS = ['POP!', 'ZAP!', 'BAM!', 'WHAM!', 'SNAP!', 'PLOP!', 'Biff!', 'Clonk!', 'Thwack!', 'SPLAT!', 'CRACK!', 'FIZZ!'];
+const BONUS_WORDS = ['POW!', 'WOW!', 'BOOM!', 'BANG!', 'SMASH!', 'CRUNCH!', 'KRAK!', 'WHACK!', 'ZONK!', 'THUMP!'];
+const SUPER_WORDS = ['KABOOM!', 'INCREDIBLE!', 'UNSTOPPABLE!', 'MEGA POP!', 'HOLY COW!', 'ULTRA!', 'SUPREME!', 'MONSTER!', 'GODLIKE!', 'EPIC!'];
 
 const BG_COLORS = [
   '#4facfe', // Level 1 (Blue)
@@ -160,6 +187,16 @@ const BG_COLORS = [
   '#cc33ff', // Level 6 (Purple)
 ];
 
+const spawnPowerup = (): PowerupType | undefined => {
+  if (Math.random() < 0.12) { // 12% chance for more frequent bonuses
+    const r = Math.random();
+    if (r < 0.33) return 'moves';
+    if (r < 0.66) return 'multiplier';
+    return 'bomb';
+  }
+  return undefined;
+};
+
 const generateGrid = (rows: number, cols: number): (Ball | null)[][] => {
   const grid: (Ball | null)[][] = [];
   const colors: BallColor[] = ['red', 'blue', 'yellow', 'green', 'purple'];
@@ -169,6 +206,7 @@ const generateGrid = (rows: number, cols: number): (Ball | null)[][] => {
       row.push({
         id: `${r}-${c}-${Math.random()}`,
         color: colors[Math.floor(Math.random() * colors.length)],
+        powerup: spawnPowerup(),
       });
     }
     grid.push(row);
@@ -182,12 +220,13 @@ export default function App() {
   const [selection, setSelection] = useState<{ r: number; c: number }[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [score, setScore] = useState(0);
-  const [moves, setMoves] = useState(LEVELS[0].moves);
-  const [targets, setTargets] = useState<Partial<Record<BallColor, number>>>(LEVELS[0].targets);
+  const [moves, setMoves] = useState(generateLevelConfig(0).moves);
+  const [targets, setTargets] = useState<Partial<Record<BallColor, number>>>(generateLevelConfig(0).targets);
   const [gameState, setGameState] = useState<'home' | 'playing' | 'won' | 'lost' | 'levelup'>('home');
   const [effects, setEffects] = useState<Effect[]>([]);
   const [shake, setShake] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [multiplierTurns, setMultiplierTurns] = useState(0);
 
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -301,7 +340,7 @@ export default function App() {
     return newGrid;
   };
 
-  const triggerExplosion = (r: number, c: number, color: string, selection: {r: number, c: number}[], delay: number = 0) => {
+  const triggerExplosion = (r: number, c: number, color: string, selection: {r: number, c: number}[], delay: number = 0, customText?: string) => {
     const isBonus = selection.length >= 5;
     const rect = gridRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -312,15 +351,17 @@ export default function App() {
       const x = c * cellWidth + cellWidth / 2;
       const y = r * cellHeight + cellHeight / 2;
 
-      let text = '';
-      const length = selection.length;
-      
-      if (length >= 10) {
-        text = SUPER_WORDS[Math.floor(Math.random() * SUPER_WORDS.length)];
-      } else if (length >= 5) {
-        text = BONUS_WORDS[Math.floor(Math.random() * BONUS_WORDS.length)];
-      } else {
-        text = COMIC_WORDS[Math.floor(Math.random() * COMIC_WORDS.length)];
+      let text = customText || '';
+      if (!text) {
+        const length = selection.length;
+        
+        if (length >= 10) {
+          text = SUPER_WORDS[Math.floor(Math.random() * SUPER_WORDS.length)];
+        } else if (length >= 5) {
+          text = BONUS_WORDS[Math.floor(Math.random() * BONUS_WORDS.length)];
+        } else {
+          text = COMIC_WORDS[Math.floor(Math.random() * COMIC_WORDS.length)];
+        }
       }
 
       const effectColor = EFFECT_COLORS[color as BallColor] || '#ffffff';
@@ -348,25 +389,61 @@ export default function App() {
     if (selection.length >= MIN_MATCH && gameState === 'playing') {
       const firstBall = grid[selection[0].r][selection[0].c];
       if (firstBall) {
+        let chainColor: BallColor | null = null;
+        for (const s of selection) {
+          const b = grid[s.r][s.c];
+          if (b && b.color !== 'rainbow' && b.color !== 'special') {
+            chainColor = b.color;
+            break;
+          }
+        }
+        
+        // Check powerups
+        let addedMoves = 0;
+        let activatedMultiplier = false;
+        let activatedBomb = false;
+
+        selection.forEach(({ r, c }) => {
+          const ball = grid[r][c];
+          if (ball?.powerup === 'moves') addedMoves += 3;
+          if (ball?.powerup === 'multiplier') activatedMultiplier = true;
+          if (ball?.powerup === 'bomb') activatedBomb = true;
+        });
+
+        let finalSelection = [...selection];
+        if (activatedBomb && chainColor) {
+          for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+              const b = grid[r][c];
+              if (b && b.color === chainColor && !finalSelection.some(s => s.r === r && s.c === c)) {
+                finalSelection.push({ r, c });
+              }
+            }
+          }
+        }
+
         const color = firstBall.color;
-        const isBonus = selection.length >= 5;
-        const isSuperBonus = selection.length >= 10;
+        const isBonus = finalSelection.length >= 5;
+        const isSuperBonus = finalSelection.length >= 10;
 
         // Trigger multiple explosions for more "POW WOW" feel
         if (isSuperBonus) {
+          addedMoves += 1; // Give +1 move for 10+ combo
           // Trigger 3 explosions for super bonus
-          triggerExplosion(selection[0].r, selection[0].c, color, selection, 0);
-          triggerExplosion(selection[Math.floor(selection.length / 2)].r, selection[Math.floor(selection.length / 2)].c, color, selection, 150);
-          triggerExplosion(selection[selection.length - 1].r, selection[selection.length - 1].c, color, selection, 300);
+          triggerExplosion(finalSelection[0].r, finalSelection[0].c, color, finalSelection, 0);
+          triggerExplosion(finalSelection[Math.floor(finalSelection.length / 2)].r, finalSelection[Math.floor(finalSelection.length / 2)].c, color, finalSelection, 150);
+          triggerExplosion(finalSelection[finalSelection.length - 1].r, finalSelection[finalSelection.length - 1].c, color, finalSelection, 300);
+          // Show +1 MOVE effect
+          triggerExplosion(finalSelection[Math.floor(finalSelection.length / 2)].r, finalSelection[Math.floor(finalSelection.length / 2)].c, 'special', finalSelection, 450, "+1 MOVE!");
         } else if (isBonus) {
           // Trigger 2 explosions for bonus
-          triggerExplosion(selection[0].r, selection[0].c, color, selection, 0);
-          triggerExplosion(selection[selection.length - 1].r, selection[selection.length - 1].c, color, selection, 200);
+          triggerExplosion(finalSelection[0].r, finalSelection[0].c, color, finalSelection, 0);
+          triggerExplosion(finalSelection[finalSelection.length - 1].r, finalSelection[finalSelection.length - 1].c, color, finalSelection, 200);
         } else {
           // Standard explosion at center
-          const centerIdx = Math.floor(selection.length / 2);
-          const centerCell = selection[centerIdx];
-          triggerExplosion(centerCell.r, centerCell.c, color, selection);
+          const centerIdx = Math.floor(finalSelection.length / 2);
+          const centerCell = finalSelection[centerIdx];
+          triggerExplosion(centerCell.r, centerCell.c, color, finalSelection);
         }
         
         if (isSuperBonus) {
@@ -374,79 +451,72 @@ export default function App() {
         } else if (isBonus) {
           playBonus();
         } else {
-          playPop(selection.length);
+          playPop(finalSelection.length);
         }
         
-        if (selection.length >= 5) {
+        if (finalSelection.length >= 5) {
           setShake(true);
           setTimeout(() => setShake(false), 300);
         }
 
         let newGrid = grid.map((row) => [...row]);
         
-        // Clear balls, but handle special/rainbow creation
-        selection.forEach(({ r, c }, index) => {
-          if (index === selection.length - 1) {
-            if (isSuperBonus) {
-              newGrid[r][c] = { id: `rainbow-${Date.now()}`, color: 'rainbow' };
-            } else if (isBonus) {
-              newGrid[r][c] = { id: `special-${Date.now()}`, color: 'special' };
-            } else {
-              newGrid[r][c] = null;
-            }
-          } else {
-            newGrid[r][c] = null;
-          }
+        // Clear balls
+        finalSelection.forEach(({ r, c }) => {
+          newGrid[r][c] = null;
         });
+
+        // Create special/rainbow at the end of ORIGINAL selection
+        const lastSelected = selection[selection.length - 1];
+        if (isSuperBonus) {
+          newGrid[lastSelected.r][lastSelected.c] = { id: `rainbow-${Date.now()}`, color: 'rainbow' };
+        } else if (isBonus) {
+          newGrid[lastSelected.r][lastSelected.c] = { id: `special-${Date.now()}`, color: 'special' };
+        }
 
         newGrid = applyGravity(newGrid);
         setGrid(newGrid);
         
         // Score calculation
-        const baseScore = selection.length * 10;
-        const bonusMultiplier = isSuperBonus ? 4 : (isBonus ? 2 : 1);
+        const baseScore = finalSelection.length * 10;
+        let bonusMultiplier = isSuperBonus ? 4 : (isBonus ? 2 : 1);
+        if (multiplierTurns > 0 || activatedMultiplier) {
+          bonusMultiplier *= 2;
+        }
         setScore((s) => s + baseScore * bonusMultiplier);
         
-        const newMoves = moves - 1;
+        const newMoves = moves - 1 + addedMoves;
         setMoves(newMoves);
+
+        if (activatedMultiplier) {
+          setMultiplierTurns(3);
+        } else if (multiplierTurns > 0) {
+          setMultiplierTurns(m => m - 1);
+        }
 
         setTargets((prev) => {
           const newTargets = { ...prev };
           
           // Check if rainbow or special was used in the selection
-          const usedRainbow = selection.some(s => grid[s.r][s.c]?.color === 'rainbow');
-          const usedSpecial = selection.some(s => grid[s.r][s.c]?.color === 'special');
+          const usedRainbow = finalSelection.some(s => grid[s.r][s.c]?.color === 'rainbow');
+          const usedSpecial = finalSelection.some(s => grid[s.r][s.c]?.color === 'special');
 
           if (usedRainbow) {
             // Rainbow contributes to ALL targets!
-            Object.keys(newTargets).forEach(color => {
-              newTargets[color as BallColor] = Math.max(0, newTargets[color as BallColor]! - selection.length);
+            Object.keys(newTargets).forEach(c => {
+              newTargets[c as BallColor] = Math.max(0, newTargets[c as BallColor]! - finalSelection.length);
             });
           } else {
-            // Normal chain logic
-            let chainColor: BallColor | null = null;
-            for (const s of selection) {
-              const b = grid[s.r][s.c];
-              if (b && b.color !== 'rainbow' && b.color !== 'special') {
-                chainColor = b.color;
-                break;
-              }
-            }
-
             if (chainColor && newTargets[chainColor] !== undefined) {
               // Special ball doubles the impact on the target!
               const multiplier = usedSpecial ? 2 : 1;
-              newTargets[chainColor] = Math.max(0, newTargets[chainColor]! - (selection.length * multiplier));
+              newTargets[chainColor] = Math.max(0, newTargets[chainColor]! - (finalSelection.length * multiplier));
             }
           }
           
           const isWon = Object.values(newTargets).every(count => count === 0);
           if (isWon) {
-            if (level < LEVELS.length - 1) {
-              setGameState('levelup');
-            } else {
-              setGameState('won');
-            }
+            setGameState('levelup');
           } else if (newMoves <= 0) {
             setGameState('lost');
           }
@@ -480,11 +550,13 @@ export default function App() {
     const nextLevel = level + 1;
     setLevel(nextLevel);
     setGrid(generateGrid(ROWS, COLS));
-    setMoves(LEVELS[nextLevel].moves);
-    setTargets(LEVELS[nextLevel].targets);
+    const config = generateLevelConfig(nextLevel);
+    setMoves(config.moves);
+    setTargets(config.targets);
     setGameState('playing');
     setSelection([]);
     setEffects([]);
+    setMultiplierTurns(0);
   };
 
   const resetGame = () => {
@@ -493,11 +565,13 @@ export default function App() {
     setLevel(0);
     setGrid(generateGrid(ROWS, COLS));
     setScore(0);
-    setMoves(LEVELS[0].moves);
-    setTargets(LEVELS[0].targets);
+    const config = generateLevelConfig(0);
+    setMoves(config.moves);
+    setTargets(config.targets);
     setGameState('playing');
     setSelection([]);
     setEffects([]);
+    setMultiplierTurns(0);
   };
 
   const goToHome = () => {
@@ -506,9 +580,11 @@ export default function App() {
     setGameState('home');
     setLevel(0);
     setScore(0);
-    setMoves(LEVELS[0].moves);
-    setTargets(LEVELS[0].targets);
+    const config = generateLevelConfig(0);
+    setMoves(config.moves);
+    setTargets(config.targets);
     setGrid(generateGrid(ROWS, COLS));
+    setMultiplierTurns(0);
   };
 
   const handleToggleMute = () => {
@@ -561,8 +637,11 @@ export default function App() {
           </div>
           {gameState !== 'home' && (
             <div className="flex gap-4 mt-2 items-center">
-              <div className="font-comic text-xl sm:text-2xl text-white comic-text">
+              <div className="font-comic text-xl sm:text-2xl text-white comic-text flex items-center gap-2">
                 SCORE: {score}
+                {multiplierTurns > 0 && (
+                  <span className="text-yellow-300 animate-pulse text-lg">(2x Active!)</span>
+                )}
               </div>
               <div className={`font-comic text-xl sm:text-2xl comic-text ${moves <= 5 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
                 MOVES: {moves}
@@ -724,6 +803,26 @@ export default function App() {
                             <div className="w-3/4 h-3/4 border-2 border-white/50 rounded-full animate-spin-slow" />
                           </div>
                         )}
+                        
+                        {/* Powerup Indicators */}
+                        {ball.powerup === 'moves' && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="font-comic text-white text-xl drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">+3</span>
+                          </div>
+                        )}
+                        {ball.powerup === 'multiplier' && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="font-comic text-white text-xl drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">2x</span>
+                          </div>
+                        )}
+                        {ball.powerup === 'bomb' && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <svg viewBox="0 0 24 24" fill="black" className="w-6 h-6 drop-shadow-[0_0_2px_rgba(255,255,255,0.8)]">
+                              <path d="M11.25 2.25A.75.75 0 0 0 10.5 3v1.5a.75.75 0 0 0 1.5 0V3a.75.75 0 0 0-.75-.75ZM15.864 4.575a.75.75 0 0 0-1.06-1.06l-1.06 1.06a.75.75 0 0 0 1.06 1.06l1.06-1.06ZM7.076 5.635a.75.75 0 0 0 1.06-1.06l-1.06-1.06a.75.75 0 0 0-1.06 1.06l1.06 1.06ZM11.25 7.5a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM9 12.75a2.25 2.25 0 1 1 4.5 0 2.25 2.25 0 0 1-4.5 0Z" />
+                            </svg>
+                          </div>
+                        )}
+
                         <div className="absolute top-1 left-1 w-3 h-3 bg-white rounded-full opacity-50" />
                         
                         {isSelected(r, c) && (
