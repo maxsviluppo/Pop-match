@@ -110,6 +110,8 @@ interface Effect {
   text: string;
   color: string;
   isBonus?: boolean;
+  rotation: number;
+  scale: number;
 }
 
 interface LevelConfig {
@@ -174,9 +176,9 @@ const EFFECT_COLORS: Record<BallColor, string> = {
   special: '#ffcc00',
 };
 
-const COMIC_WORDS = ['POP!', 'ZAP!', 'BAM!', 'WHAM!', 'SNAP!', 'PLOP!', 'Biff!', 'Clonk!', 'Thwack!', 'SPLAT!', 'CRACK!', 'FIZZ!'];
-const BONUS_WORDS = ['POW!', 'WOW!', 'BOOM!', 'BANG!', 'SMASH!', 'CRUNCH!', 'KRAK!', 'WHACK!', 'ZONK!', 'THUMP!'];
-const SUPER_WORDS = ['KABOOM!', 'INCREDIBLE!', 'UNSTOPPABLE!', 'MEGA POP!', 'HOLY COW!', 'ULTRA!', 'SUPREME!', 'MONSTER!', 'GODLIKE!', 'EPIC!'];
+const COMIC_WORDS = ['POP!', 'ZAP!', 'BAM!', 'WHAM!', 'SNAP!', 'PLOP!', 'Biff!', 'Clonk!', 'Thwack!', 'SPLAT!', 'CRACK!', 'FIZZ!', 'ZIP!', 'BOING!', 'KAPOW!', 'WHIZZ!', 'POOF!', 'BOP!', 'DING!', 'PING!'];
+const BONUS_WORDS = ['POW!', 'WOW!', 'BOOM!', 'BANG!', 'SMASH!', 'CRUNCH!', 'KRAK!', 'WHACK!', 'ZONK!', 'THUMP!', 'KRUNCH!', 'VROOOM!', 'CLANG!', 'KRAKOOM!', 'WHAMMO!', 'ZOWIE!'];
+const SUPER_WORDS = ['KABOOM!', 'INCREDIBLE!', 'UNSTOPPABLE!', 'MEGA POP!', 'HOLY COW!', 'ULTRA!', 'SUPREME!', 'MONSTER!', 'GODLIKE!', 'EPIC!', 'LEGENDARY!', 'INSANE!', 'COSMIC!', 'ASTONISHING!', 'SPECTACULAR!', 'MIND-BLOWING!'];
 
 const BG_COLORS = [
   '#4facfe', // Level 1 (Blue)
@@ -372,7 +374,9 @@ export default function App() {
         y,
         text,
         color: effectColor,
-        isBonus
+        isBonus,
+        rotation: Math.random() * 40 - 20,
+        scale: 0.8 + Math.random() * 0.4
       };
 
       setEffects(prev => [...prev, newEffect]);
@@ -620,10 +624,10 @@ export default function App() {
   const isValidSelection = selection.length >= MIN_MATCH;
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-start pt-4 sm:pt-8 p-4 font-sans select-none overflow-hidden relative">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-start pt-12 sm:pt-16 p-4 font-sans select-none overflow-hidden relative">
       
       {/* Header */}
-      <div className={`w-full max-w-md ${gameState === 'home' ? 'mb-8 flex-col items-center text-center' : 'mb-4 flex-row justify-between items-end'} flex z-10 transition-all duration-500`}>
+      <div className={`w-full max-w-md ${gameState === 'home' ? 'mb-16 flex-col items-center text-center' : 'mb-8 flex-row justify-between items-end'} flex z-10 transition-all duration-500`}>
         <div className={`flex flex-col ${gameState === 'home' ? 'items-center' : ''}`}>
           <div className="flex items-center gap-2">
             <h1 className={`font-comic ${gameState === 'home' ? 'text-7xl sm:text-8xl' : 'text-4xl sm:text-5xl'} text-[#ffcc00] comic-text tracking-wider transform -rotate-2 transition-all duration-500`}>
@@ -869,11 +873,11 @@ export default function App() {
               {effects.map(effect => (
                 <motion.div
                   key={effect.id}
-                  initial={{ scale: 0, opacity: 0, rotate: -20 }}
+                  initial={{ scale: 0, opacity: 0, rotate: effect.rotation - 20 }}
                   animate={{ 
-                    scale: effect.isBonus ? [0, 2, 1.5] : [0, 1.5, 1.2], 
+                    scale: effect.isBonus ? [0, 2 * effect.scale, 1.5 * effect.scale] : [0, 1.5 * effect.scale, 1.2 * effect.scale], 
                     opacity: [0, 1, 1, 0], 
-                    rotate: effect.isBonus ? [0, 15, -15, 0] : 10 
+                    rotate: effect.isBonus ? [effect.rotation, effect.rotation + 15, effect.rotation - 15, effect.rotation] : effect.rotation 
                   }}
                   transition={{ duration: 0.6, times: [0, 0.2, 0.8, 1] }}
                   exit={{ opacity: 0 }}
