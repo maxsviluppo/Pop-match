@@ -177,7 +177,7 @@ const EFFECT_COLORS: Record<BallColor, string> = {
 };
 
 const COMIC_WORDS = ['POP!', 'ZAP!', 'BAM!', 'WHAM!', 'SNAP!', 'PLOP!', 'Biff!', 'Clonk!', 'Thwack!', 'SPLAT!', 'CRACK!', 'FIZZ!', 'ZIP!', 'BOING!', 'KAPOW!', 'WHIZZ!', 'POOF!', 'BOP!', 'DING!', 'PING!'];
-const BONUS_WORDS = ['POW!', 'WOW!', 'BOOM!', 'BANG!', 'SMASH!', 'CRUNCH!', 'KRAK!', 'WHACK!', 'ZONK!', 'THUMP!', 'KRUNCH!', 'VROOOM!', 'CLANG!', 'KRAKOOM!', 'WHAMMO!', 'ZOWIE!'];
+const BONUS_WORDS = ['POW-WOW!', 'POW!', 'WOW!', 'BOOM!', 'BANG!', 'SMASH!', 'CRUNCH!', 'KRAK!', 'WHACK!', 'ZONK!', 'THUMP!', 'KRUNCH!', 'VROOOM!', 'CLANG!', 'KRAKOOM!', 'WHAMMO!', 'ZOWIE!'];
 const SUPER_WORDS = ['KABOOM!', 'INCREDIBLE!', 'UNSTOPPABLE!', 'MEGA POP!', 'HOLY COW!', 'ULTRA!', 'SUPREME!', 'MONSTER!', 'GODLIKE!', 'EPIC!', 'LEGENDARY!', 'INSANE!', 'COSMIC!', 'ASTONISHING!', 'SPECTACULAR!', 'MIND-BLOWING!'];
 
 const BG_COLORS = [
@@ -624,10 +624,10 @@ export default function App() {
   const isValidSelection = selection.length >= MIN_MATCH;
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-start pt-12 sm:pt-16 p-4 font-sans select-none overflow-hidden relative">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-start pt-2 sm:pt-4 p-4 font-sans select-none overflow-hidden relative">
       
       {/* Header */}
-      <div className={`w-full max-w-md ${gameState === 'home' ? 'mb-16 flex-col items-center text-center' : 'mb-8 flex-row justify-between items-end'} flex z-10 transition-all duration-500`}>
+      <div className={`w-full max-w-md ${gameState === 'home' ? 'mb-12 flex-col items-center text-center' : 'mb-4 flex-row justify-between items-end'} flex z-10 transition-all duration-500`}>
         <div className={`flex flex-col ${gameState === 'home' ? 'items-center' : ''}`}>
           <div className="flex items-center gap-2">
             <h1 className={`font-comic ${gameState === 'home' ? 'text-7xl sm:text-8xl' : 'text-4xl sm:text-5xl'} text-[#ffcc00] comic-text tracking-wider transform -rotate-2 transition-all duration-500`}>
