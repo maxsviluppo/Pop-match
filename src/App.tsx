@@ -620,13 +620,13 @@ export default function App() {
   const isValidSelection = selection.length >= MIN_MATCH;
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 font-sans select-none overflow-hidden relative">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-start pt-4 sm:pt-8 p-4 font-sans select-none overflow-hidden relative">
       
       {/* Header */}
-      <div className="w-full max-w-md mb-4 flex justify-between items-end z-10">
-        <div className="flex flex-col">
+      <div className={`w-full max-w-md ${gameState === 'home' ? 'mb-8 flex-col items-center text-center' : 'mb-4 flex-row justify-between items-end'} flex z-10 transition-all duration-500`}>
+        <div className={`flex flex-col ${gameState === 'home' ? 'items-center' : ''}`}>
           <div className="flex items-center gap-2">
-            <h1 className="font-comic text-4xl sm:text-5xl text-[#ffcc00] comic-text tracking-wider transform -rotate-2">
+            <h1 className={`font-comic ${gameState === 'home' ? 'text-7xl sm:text-8xl' : 'text-4xl sm:text-5xl'} text-[#ffcc00] comic-text tracking-wider transform -rotate-2 transition-all duration-500`}>
               POP MATCH!
             </h1>
             {gameState !== 'home' && (
@@ -637,12 +637,36 @@ export default function App() {
           </div>
           {gameState !== 'home' && (
             <div className="flex gap-4 mt-2 items-center">
-              <div className="font-comic text-xl sm:text-2xl text-white comic-text flex items-center gap-2">
-                SCORE: {score}
-                {multiplierTurns > 0 && (
-                  <span className="text-yellow-300 animate-pulse text-lg">(2x Active!)</span>
-                )}
-              </div>
+              <motion.div 
+                animate={multiplierTurns > 0 ? {
+                  textShadow: ['0px 0px 0px rgba(255,204,0,0)', '0px 0px 10px rgba(255,204,0,1)', '0px 0px 0px rgba(255,204,0,0)']
+                } : {}}
+                transition={{ repeat: Infinity, duration: 1 }}
+                className="font-comic text-xl sm:text-2xl text-white comic-text flex items-center gap-2"
+              >
+                SCORE: 
+                <motion.span
+                  key={score}
+                  initial={{ scale: 1.5, color: multiplierTurns > 0 ? '#ffcc00' : '#ffffff' }}
+                  animate={{ scale: 1, color: '#ffffff' }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                >
+                  {score}
+                </motion.span>
+                <AnimatePresence>
+                  {multiplierTurns > 0 && (
+                    <motion.span 
+                      initial={{ scale: 0, opacity: 0, rotate: -10 }}
+                      animate={{ scale: [1, 1.1, 1], opacity: 1, rotate: [-5, 5, -5] }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ repeat: Infinity, duration: 0.8 }}
+                      className="bg-[#ffcc00] text-black px-2 py-0.5 rounded-lg border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-sm sm:text-base ml-1 tracking-wider"
+                    >
+                      2x ACTIVE!
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </motion.div>
               <div className={`font-comic text-xl sm:text-2xl comic-text ${moves <= 5 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
                 MOVES: {moves}
               </div>
@@ -690,13 +714,14 @@ export default function App() {
       </div>
 
       {/* Game Board or Home Screen */}
-      {gameState === 'home' ? (
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="bg-white p-8 rounded-3xl comic-border max-w-sm w-full text-center flex flex-col items-center z-10"
-        >
-          <div className="relative mb-8">
+      <div className="flex-1 flex flex-col items-center justify-center w-full">
+        {gameState === 'home' ? (
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white p-6 sm:p-8 rounded-3xl comic-border max-w-sm w-full text-center flex flex-col items-center z-10"
+          >
+            <div className="relative mb-8">
             <div className="absolute -top-10 -left-10 w-20 h-20 bg-[#ff3366] rounded-full comic-border transform -rotate-12 flex items-center justify-center">
               <span className="font-comic text-white text-2xl comic-text">POP!</span>
             </div>
@@ -900,6 +925,7 @@ export default function App() {
           )}
         </motion.div>
       )}
+      </div>
 
       {/* Overlay Screens */}
       <AnimatePresence>
