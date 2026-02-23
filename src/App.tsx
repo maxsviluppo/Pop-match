@@ -229,6 +229,8 @@ export default function App() {
   const [shake, setShake] = useState(false);
   const [muted, setMuted] = useState(false);
   const [multiplierTurns, setMultiplierTurns] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [comboMeter, setComboMeter] = useState(0);
 
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -430,6 +432,24 @@ export default function App() {
         const isBonus = finalSelection.length >= 5;
         const isSuperBonus = finalSelection.length >= 10;
 
+        // Combo logic
+        setCombo(c => c + 1);
+        setComboMeter(prev => {
+          const increment = Math.min(25, 10 + (finalSelection.length - 3) * 5);
+          const newValue = prev + increment;
+          if (newValue >= 100) {
+            // Combo Breakout!
+            setScore(s => s + 500);
+            setMoves(m => m + 2);
+            triggerExplosion(finalSelection[0].r, finalSelection[0].c, 'special', finalSelection, 600, "COMBO BREAKOUT!");
+            triggerExplosion(finalSelection[0].r, finalSelection[0].c, 'special', finalSelection, 750, "+500 PTS");
+            triggerExplosion(finalSelection[0].r, finalSelection[0].c, 'special', finalSelection, 900, "+2 MOVES");
+            playRainbow();
+            return 0; // Reset meter
+          }
+          return newValue;
+        });
+
         // Trigger multiple explosions for more "POW WOW" feel
         if (isSuperBonus) {
           addedMoves += 1; // Give +1 move for 10+ combo
@@ -527,6 +547,10 @@ export default function App() {
           
           return newTargets;
         });
+      } else if (selection.length > 0) {
+        // Reset combo on invalid selection
+        setCombo(0);
+        setComboMeter(prev => Math.max(0, prev - 15));
       }
     }
     setSelection([]);
@@ -589,6 +613,8 @@ export default function App() {
     setTargets(config.targets);
     setGrid(generateGrid(ROWS, COLS));
     setMultiplierTurns(0);
+    setCombo(0);
+    setComboMeter(0);
   };
 
   const handleToggleMute = () => {
@@ -676,43 +702,76 @@ export default function App() {
               </div>
             </div>
           )}
+          {gameState !== 'home' && (
+            <div className="w-full mt-3">
+              <div className="relative h-6 bg-white comic-border rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)]">
+                <motion.div 
+                  className="h-full bg-gradient-to-r from-[#ff3366] via-[#ffcc00] to-[#33ff33]"
+                  initial={{ width: 0 }}
+                  animate={{ 
+                    width: `${comboMeter}%`,
+                    filter: comboMeter > 70 ? ['brightness(1)', 'brightness(1.3)', 'brightness(1)'] : 'brightness(1)'
+                  }}
+                  transition={{ 
+                    width: { type: 'spring', stiffness: 50, damping: 10 },
+                    filter: { repeat: Infinity, duration: 0.5 }
+                  }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="font-comic text-[10px] sm:text-xs text-black font-bold uppercase tracking-widest drop-shadow-[0_1px_0_rgba(255,255,255,0.5)]">
+                    COMBO METER {combo > 1 ? `(${combo}X)` : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {gameState !== 'home' && (
-          <div className="flex items-center gap-2 sm:gap-3 bg-white p-2 sm:p-3 comic-border rounded-xl transform rotate-1 shadow-lg">
-            {/* Integrated Home Button */}
-            <button 
-              onClick={goToHome}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors border-r-2 border-gray-200 pr-2 mr-1"
-              title="Home"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            </button>
+          <div className="flex flex-col gap-2 items-end">
+            {/* Controls */}
+            <div className="flex items-center gap-2 bg-white/90 p-1.5 comic-border rounded-lg shadow-sm transform -rotate-1">
+              <button 
+                onClick={goToHome}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                title="Home"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </button>
+              <div className="w-px h-4 bg-gray-300 mx-0.5" />
+              <button 
+                onClick={handleToggleMute}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                title={muted ? "Unmute" : "Mute"}
+              >
+                {muted ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                )}
+              </button>
+            </div>
 
-            {/* Mute Toggle Button */}
-            <button 
-              onClick={handleToggleMute}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors border-r-2 border-gray-200 pr-2 mr-1"
-              title={muted ? "Unmute" : "Mute"}
-            >
-              {muted ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-              )}
-            </button>
-
-            {Object.entries(targets).map(([color, count]) => {
-              const isCompleted = count === 0;
-              return (
-                <div key={color} className="flex flex-col items-center relative">
-                  <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-black ${COLOR_CLASSES[color as BallColor]} ${isCompleted ? 'opacity-50' : ''}`} />
-                  <span className={`font-comic text-lg sm:text-xl leading-none mt-1 ${isCompleted ? 'text-green-500' : 'text-black'}`}>
-                    {isCompleted ? '✓' : count}
-                  </span>
-                </div>
-              );
-            })}
+            {/* Targets */}
+            <div className="flex items-center gap-3 bg-white p-2 sm:p-3 comic-border rounded-xl transform rotate-1 shadow-lg min-w-[140px] justify-center">
+              <div className="absolute -top-3 left-2 bg-black text-white text-[10px] px-2 py-0.5 rounded font-comic uppercase tracking-tighter">
+                Targets
+              </div>
+              {Object.entries(targets).map(([color, count]) => {
+                const isCompleted = count === 0;
+                return (
+                  <div key={color} className="flex flex-col items-center relative">
+                    <motion.div 
+                      animate={isCompleted ? { scale: [1, 1.2, 1] } : {}}
+                      className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-black ${COLOR_CLASSES[color as BallColor]} ${isCompleted ? 'opacity-40' : 'shadow-sm'}`} 
+                    />
+                    <span className={`font-comic text-lg sm:text-xl leading-none mt-1 ${isCompleted ? 'text-green-500 font-bold' : 'text-black'}`}>
+                      {isCompleted ? '✓' : count}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
