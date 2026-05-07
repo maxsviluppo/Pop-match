@@ -114,6 +114,26 @@ interface Effect {
   scale: number;
 }
 
+interface Particle {
+  id: string;
+  x: number;
+  y: number;
+  angle: number;
+  distance: number;
+  color: string;
+  size: number;
+  borderRadius: string;
+}
+
+interface Splash {
+  id: string;
+  x: number;
+  y: number;
+  color: string;
+  rotation: number;
+  scale: number;
+}
+
 interface LevelConfig {
   moves: number;
   targets: Partial<Record<Exclude<BallColor, 'rainbow' | 'special'>, number>>;
@@ -157,23 +177,23 @@ const generateLevelConfig = (levelIndex: number): LevelConfig => {
 };
 
 const COLOR_CLASSES: Record<BallColor, string> = {
-  red: 'bg-[#ff3366]',
-  blue: 'bg-[#33ccff]',
-  yellow: 'bg-[#ffcc00]',
-  green: 'bg-[#33ff33]',
-  purple: 'bg-[#cc33ff]',
+  red: 'bg-gradient-to-br from-[#FF0055] to-[#FF3300]',
+  blue: 'bg-gradient-to-br from-[#00D2FF] to-[#0078FF]',
+  yellow: 'bg-gradient-to-br from-[#FFFF00] to-[#FFCC00]',
+  green: 'bg-gradient-to-br from-[#00FF00] to-[#00CC00]',
+  purple: 'bg-gradient-to-br from-[#D400FF] to-[#8000FF]',
   rainbow: 'bg-gradient-to-tr from-red-500 via-green-500 to-blue-500',
   special: 'bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 border-yellow-700',
 };
 
 const EFFECT_COLORS: Record<BallColor, string> = {
-  red: '#ff3366',
-  blue: '#33ccff',
-  yellow: '#ffcc00',
-  green: '#33ff33',
-  purple: '#cc33ff',
+  red: '#FF0055',
+  blue: '#00D2FF',
+  yellow: '#FFFF00',
+  green: '#00FF00',
+  purple: '#D400FF',
   rainbow: '#ffffff',
-  special: '#ffcc00',
+  special: '#FFFF00',
 };
 
 const COMIC_WORDS = ['POP!', 'ZAP!', 'BAM!', 'WHAM!', 'SNAP!', 'PLOP!', 'Biff!', 'Clonk!', 'Thwack!', 'SPLAT!', 'CRACK!', 'FIZZ!', 'ZIP!', 'BOING!', 'KAPOW!', 'WHIZZ!', 'POOF!', 'BOP!', 'DING!', 'PING!'];
@@ -231,6 +251,10 @@ export default function App() {
   const [multiplierTurns, setMultiplierTurns] = useState(0);
   const [combo, setCombo] = useState(0);
   const [comboMeter, setComboMeter] = useState(0);
+  const [frenzyTurns, setFrenzyTurns] = useState(0);
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const [splashes, setSplashes] = useState<Splash[]>([]);
+  const [showFlash, setShowFlash] = useState(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -388,6 +412,50 @@ export default function App() {
     }, delay);
   };
 
+  const spawnParticles = (r: number, c: number, color: string) => {
+    // Use percentages (0-100) relative to the grid container
+    const px = ((c + 0.5) / COLS) * 100;
+    const py = ((r + 0.5) / ROWS) * 100;
+
+    const newParticles: Particle[] = Array.from({ length: 22 }).map(() => ({
+      id: Math.random().toString(),
+      x: px,
+      y: py,
+      angle: Math.random() * Math.PI * 2,
+      distance: 40 + Math.random() * 80, // Meno esteso
+      color: EFFECT_COLORS[color as BallColor] || '#ffffff',
+      size: 8 + Math.random() * 25, 
+      borderRadius: `${40 + Math.random() * 20}% ${30 + Math.random() * 40}% ${50 + Math.random() * 30}% ${40 + Math.random() * 20}%`
+    }));
+
+    setParticles(prev => [...prev, ...newParticles]);
+    setTimeout(() => {
+      setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+    }, 2600);
+  };
+
+  const spawnSplash = (r: number, c: number, color: string) => {
+    const px = ((c + 0.5) / COLS) * 100;
+    const py = ((r + 0.5) / ROWS) * 100;
+    const newSplash: Splash = {
+      id: Math.random().toString(),
+      x: px,
+      y: py,
+      color: EFFECT_COLORS[color as BallColor] || '#ffffff',
+      rotation: Math.random() * 360,
+      scale: 0.7 + Math.random() * 0.6
+    };
+    setSplashes(prev => [...prev, newSplash]);
+    setTimeout(() => {
+      setSplashes(prev => prev.filter(s => s.id !== newSplash.id));
+    }, 2000);
+  };
+
+  const triggerFlash = () => {
+    setShowFlash(true);
+    setTimeout(() => setShowFlash(false), 50);
+  };
+
   const handlePointerUp = () => {
     if (!isDragging) return;
     setIsDragging(false);
@@ -434,20 +502,21 @@ export default function App() {
 
         // Combo logic
         setCombo(c => c + 1);
+        let currentComboMeter = comboMeter;
         setComboMeter(prev => {
-          const increment = Math.min(25, 10 + (finalSelection.length - 3) * 5);
+          const increment = Math.min(30, 8 + (finalSelection.length - 3) * 6);
           const newValue = prev + increment;
-          if (newValue >= 100) {
-            // Combo Breakout!
-            setScore(s => s + 500);
-            setMoves(m => m + 2);
-            triggerExplosion(finalSelection[0].r, finalSelection[0].c, 'special', finalSelection, 600, "COMBO BREAKOUT!");
-            triggerExplosion(finalSelection[0].r, finalSelection[0].c, 'special', finalSelection, 750, "+500 PTS");
-            triggerExplosion(finalSelection[0].r, finalSelection[0].c, 'special', finalSelection, 900, "+2 MOVES");
+          if (newValue >= 100 && frenzyTurns === 0) {
+            // FRENZY MODE!
+            setFrenzyTurns(3);
+            setMoves(m => m + 1);
+            triggerExplosion(finalSelection[0].r, finalSelection[0].c, 'special', finalSelection, 600, "FRENZY MODE!");
+            triggerExplosion(finalSelection[0].r, finalSelection[0].c, 'special', finalSelection, 800, "5X MULTIPLIER");
             playRainbow();
-            return 0; // Reset meter
+            return 100; 
           }
-          return newValue;
+          currentComboMeter = Math.min(100, newValue);
+          return currentComboMeter;
         });
 
         // Trigger multiple explosions for more "POW WOW" feel
@@ -487,8 +556,15 @@ export default function App() {
         
         // Clear balls
         finalSelection.forEach(({ r, c }) => {
+          const ball = grid[r][c];
+          if (ball) {
+            spawnParticles(r, c, ball.color);
+            spawnSplash(r, c, ball.color);
+          }
           newGrid[r][c] = null;
         });
+
+        if (isBonus) triggerFlash();
 
         // Create special/rainbow at the end of ORIGINAL selection
         const lastSelected = selection[selection.length - 1];
@@ -503,11 +579,18 @@ export default function App() {
         
         // Score calculation
         const baseScore = finalSelection.length * 10;
+        
+        // Dynamic Multiplier based on meter
+        let meterMultiplier = 1 + (currentComboMeter / 50); // 1x to 3x
+        if (frenzyTurns > 0) meterMultiplier = 5; // 5x in Frenzy
+        
         let bonusMultiplier = isSuperBonus ? 4 : (isBonus ? 2 : 1);
         if (multiplierTurns > 0 || activatedMultiplier) {
           bonusMultiplier *= 2;
         }
-        setScore((s) => s + baseScore * bonusMultiplier);
+        
+        const totalMultiplier = meterMultiplier * bonusMultiplier;
+        setScore((s) => s + Math.floor(baseScore * totalMultiplier));
         
         const newMoves = moves - 1 + addedMoves;
         setMoves(newMoves);
@@ -516,6 +599,21 @@ export default function App() {
           setMultiplierTurns(3);
         } else if (multiplierTurns > 0) {
           setMultiplierTurns(m => m - 1);
+        }
+
+        if (frenzyTurns > 0) {
+          setFrenzyTurns(f => {
+            if (f === 1) {
+              setComboMeter(0); // Reset meter after frenzy
+              return 0;
+            }
+            return f - 1;
+          });
+        } else {
+          // Slow decay if not in frenzy and not a big match
+          if (finalSelection.length < 4) {
+            setComboMeter(prev => Math.max(0, prev - 5));
+          }
         }
 
         setTargets((prev) => {
@@ -550,7 +648,9 @@ export default function App() {
       } else if (selection.length > 0) {
         // Reset combo on invalid selection
         setCombo(0);
-        setComboMeter(prev => Math.max(0, prev - 15));
+        setComboMeter(prev => Math.max(0, prev - 25));
+        setShake(true);
+        setTimeout(() => setShake(false), 200);
       }
     }
     setSelection([]);
@@ -585,6 +685,9 @@ export default function App() {
     setSelection([]);
     setEffects([]);
     setMultiplierTurns(0);
+    setCombo(0);
+    setComboMeter(0);
+    setFrenzyTurns(0);
   };
 
   const resetGame = () => {
@@ -600,6 +703,9 @@ export default function App() {
     setSelection([]);
     setEffects([]);
     setMultiplierTurns(0);
+    setCombo(0);
+    setComboMeter(0);
+    setFrenzyTurns(0);
   };
 
   const goToHome = () => {
@@ -615,6 +721,7 @@ export default function App() {
     setMultiplierTurns(0);
     setCombo(0);
     setComboMeter(0);
+    setFrenzyTurns(0);
   };
 
   const handleToggleMute = () => {
@@ -656,11 +763,11 @@ export default function App() {
       <div className={`w-full max-w-md ${gameState === 'home' ? 'mb-12 flex-col items-center text-center' : 'mb-4 flex-row justify-between items-end'} flex z-10 transition-all duration-500`}>
         <div className={`flex flex-col ${gameState === 'home' ? 'items-center' : ''}`}>
           <div className="flex items-center gap-2">
-            <h1 className={`font-comic ${gameState === 'home' ? 'text-7xl sm:text-8xl' : 'text-4xl sm:text-5xl'} text-[#ffcc00] comic-text tracking-wider transform -rotate-2 transition-all duration-500`}>
+            <h1 className={`font-comic ${gameState === 'home' ? 'text-7xl sm:text-8xl' : 'text-4xl sm:text-5xl'} text-[#ffcc00] comic-text tracking-wider transform -rotate-2 transition-all duration-500 animate-float`}>
               POP MATCH!
             </h1>
             {gameState !== 'home' && (
-              <div className="bg-white px-3 py-1 comic-border rounded-lg transform rotate-3">
+              <div className="bg-white/90 backdrop-blur-md px-3 py-1 comic-border rounded-lg transform rotate-3">
                 <span className="font-comic text-xl">LVL {level + 1}</span>
               </div>
             )}
@@ -704,13 +811,13 @@ export default function App() {
           )}
           {gameState !== 'home' && (
             <div className="w-full mt-3">
-              <div className="relative h-6 bg-white comic-border rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)]">
+              <div className={`relative h-6 glass-card rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] ${frenzyTurns > 0 ? 'ring-4 ring-yellow-400 animate-pulse' : ''}`}>
                 <motion.div 
-                  className="h-full bg-gradient-to-r from-[#ff3366] via-[#ffcc00] to-[#33ff33]"
+                  className={`h-full ${frenzyTurns > 0 ? 'bg-gradient-to-r from-yellow-400 via-red-500 to-yellow-400' : 'bg-gradient-to-r from-[#ff3366] via-[#ffcc00] to-[#33ff33]'}`}
                   initial={{ width: 0 }}
                   animate={{ 
-                    width: `${comboMeter}%`,
-                    filter: comboMeter > 70 ? ['brightness(1)', 'brightness(1.3)', 'brightness(1)'] : 'brightness(1)'
+                    width: frenzyTurns > 0 ? '100%' : `${comboMeter}%`,
+                    filter: (comboMeter > 70 || frenzyTurns > 0) ? ['brightness(1)', 'brightness(1.3)', 'brightness(1)'] : 'brightness(1)'
                   }}
                   transition={{ 
                     width: { type: 'spring', stiffness: 50, damping: 10 },
@@ -719,7 +826,7 @@ export default function App() {
                 />
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <span className="font-comic text-[10px] sm:text-xs text-black font-bold uppercase tracking-widest drop-shadow-[0_1px_0_rgba(255,255,255,0.5)]">
-                    COMBO METER {combo > 1 ? `(${combo}X)` : ''}
+                    {frenzyTurns > 0 ? `🔥 FRENZY MODE (${frenzyTurns}T) 🔥` : `COMBO METER ${comboMeter > 0 ? `(${(1 + comboMeter/50).toFixed(1)}X)` : ''}`}
                   </span>
                 </div>
               </div>
@@ -753,7 +860,7 @@ export default function App() {
             </div>
 
             {/* Targets */}
-            <div className="flex items-center gap-3 bg-white p-2 sm:p-3 comic-border rounded-xl transform rotate-1 shadow-lg min-w-[140px] justify-center">
+            <div className="flex items-center gap-3 glass-card p-2 sm:p-3 rounded-xl transform rotate-1 shadow-lg min-w-[140px] justify-center relative">
               <div className="absolute -top-3 left-2 bg-black text-white text-[10px] px-2 py-0.5 rounded font-comic uppercase tracking-tighter">
                 Targets
               </div>
@@ -782,7 +889,7 @@ export default function App() {
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white p-6 sm:p-8 rounded-3xl comic-border max-w-sm w-full text-center flex flex-col items-center z-10"
+            className="glass-card p-6 sm:p-8 rounded-3xl max-w-sm w-full text-center flex flex-col items-center z-10"
           >
             <div className="relative mb-8">
             <div className="absolute -top-10 -left-10 w-20 h-20 bg-[#ff3366] rounded-full comic-border transform -rotate-12 flex items-center justify-center">
@@ -840,6 +947,23 @@ export default function App() {
               gridTemplateRows: `repeat(${ROWS}, minmax(0, 1fr))`
             }}
           >
+            {/* Frenzy Overlay Text */}
+            <AnimatePresence>
+              {frenzyTurns > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.5, rotate: -10 }}
+                  animate={{ opacity: 0.2, scale: 1.2, rotate: 10 }}
+                  exit={{ opacity: 0, scale: 2 }}
+                  transition={{ repeat: Infinity, repeatType: 'reverse', duration: 0.5 }}
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none z-0"
+                >
+                  <span className="font-comic text-8xl text-yellow-400 comic-text opacity-30 select-none">
+                    FRENZY!
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {grid.map((row, r) => 
               row.map((ball, c) => (
                 <div 
@@ -859,26 +983,37 @@ export default function App() {
                         initial={{ scale: 0, y: -50 }}
                         animate={{ scale: 1, y: 0 }}
                         exit={{ 
-                          scale: [1, 1.2, 0], 
-                          rotate: [0, 15, -15, 0],
-                          opacity: [1, 1, 0],
-                          transition: { type: 'keyframes', duration: 0.3 }
+                          scale: 0, 
+                          rotate: 0,
+                          opacity: 0,
+                          transition: { duration: 0.25 }
                         }}
                         transition={{ 
                           type: 'spring', 
-                          stiffness: 300, 
-                          damping: 25
+                          stiffness: 400, 
+                          damping: 18,
+                          mass: 0.8
                         }}
                         className={`
                           absolute inset-1 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]
                           ${ball.color === 'special' ? 'rounded-lg rotate-45 border-[3px]' : 'rounded-full border-[3px]'}
                           ${COLOR_CLASSES[ball.color]}
-                          ${isSelected(r, c) ? 'scale-110 z-10 brightness-110' : 'hover:brightness-110'}
+                          ${isSelected(r, c) ? 'scale-110 z-10 brightness-110 shadow-xl' : 'hover:brightness-110'}
                           cursor-pointer transition-all duration-100 pointer-events-none
                           ${(ball.color === 'rainbow' || ball.color === 'special') ? 'animate-pulse' : ''}
                           ${isDragging && isAdjacentToLast(r, c) && (ball.color === 'rainbow' || ball.color === 'special' || !chainColor || ball.color === chainColor) ? 'ring-4 ring-white ring-opacity-70 scale-105' : ''}
                         `}
                       >
+                        <motion.div 
+                          className="absolute inset-0 rounded-full"
+                          animate={isSelected(r, c) ? { scale: 1.1 } : { scale: 1 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                        />
+                        {/* Glossy Reflection */}
+                        <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-white/20 to-transparent pointer-events-none" />
+                        <div className="absolute top-[10%] left-[15%] w-[30%] h-[20%] bg-white/40 rounded-full blur-[1px] transform rotate-[-20deg]" />
+                        <div className="absolute bottom-[5%] right-[10%] w-[40%] h-[40%] bg-black/10 rounded-full blur-[2px]" />
+                        
                         {ball.color === 'special' && (
                           <div className="absolute inset-0 flex items-center justify-center -rotate-45">
                             <svg viewBox="0 0 24 24" fill="white" className="w-8 h-8 drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]">
@@ -971,6 +1106,20 @@ export default function App() {
             </AnimatePresence>
           </div>
 
+
+          {/* Screen Flash */}
+          <AnimatePresence>
+            {showFlash && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.3 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.05 }}
+                className="absolute inset-0 bg-white z-[100] pointer-events-none"
+              />
+            )}
+          </AnimatePresence>
+
           {/* Selection Status Overlay */}
           {isDragging && (selection.length > 0) && (
             <div className="absolute -bottom-12 left-0 right-0 flex justify-center pointer-events-none z-20">
@@ -986,6 +1135,73 @@ export default function App() {
               </motion.div>
             </div>
           )}
+
+          {/* Splashes Layer - Behind everything else */}
+          <div className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-0">
+            <AnimatePresence>
+              {splashes.map(s => (
+                <motion.div
+                  key={s.id}
+                  initial={{ scale: 0, opacity: 0, x: '-50%', y: '-50%', rotate: s.rotation }}
+                  animate={{ scale: s.scale, opacity: [0, 0.4, 0] }}
+                  transition={{ 
+                    duration: 1.8, 
+                    times: [0, 0.1, 1],
+                    ease: "easeOut" 
+                  }}
+                  style={{ 
+                    position: 'absolute',
+                    width: 120,
+                    height: 120,
+                    left: `${s.x}%`,
+                    top: `${s.y}%`,
+                    color: s.color,
+                  }}
+                >
+                  <svg viewBox="0 0 100 100" fill="currentColor" className="w-full h-full opacity-60">
+                    <path d="M50,10 C65,5 85,15 90,35 C95,55 85,75 65,85 C45,95 15,90 5,70 C-5,50 15,20 35,10 C40,8 45,12 50,10 Z" />
+                    <circle cx="20" cy="20" r="5" />
+                    <circle cx="80" cy="15" r="4" />
+                    <circle cx="90" cy="60" r="6" />
+                    <circle cx="15" cy="85" r="5" />
+                  </svg>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+
+          {/* Particles Layer - Percentage Based */}
+          <div className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-[110]">
+            <AnimatePresence>
+              {particles.map(p => (
+                <motion.div
+                  key={p.id}
+                  initial={{ x: '-50%', y: '-50%', scale: 0.5, opacity: 1 }}
+                  animate={{ 
+                    x: `calc(-50% + ${Math.cos(p.angle) * p.distance}px)`,
+                    y: `calc(-50% + ${Math.sin(p.angle) * p.distance + 120}px)`,
+                    scale: [0.5, 1, 0],
+                    opacity: [1, 1, 0]
+                  }}
+                  transition={{ 
+                    duration: 3, 
+                    ease: "circOut",
+                    times: [0, 0.1, 1]
+                  }}
+                  style={{ 
+                    position: 'absolute',
+                    width: p.size,
+                    height: p.size,
+                    backgroundColor: p.color,
+                    borderRadius: p.borderRadius,
+                    left: `${p.x}%`,
+                    top: `${p.y}%`,
+                    boxShadow: `inset -2px -2px 6px rgba(0,0,0,0.2), inset 2px 2px 6px rgba(255,255,255,0.3)`,
+                  }}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
         </motion.div>
       )}
       </div>
@@ -1000,8 +1216,9 @@ export default function App() {
             className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm p-4"
           >
             <motion.div 
-              initial={{ scale: 0.8, y: 50 }}
-              animate={{ scale: 1, y: 0 }}
+              initial={{ scale: 0.5, y: 100, rotate: -5 }}
+              animate={{ scale: 1, y: 0, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 15 }}
               className="bg-white p-8 rounded-3xl comic-border max-w-sm w-full text-center flex flex-col items-center"
             >
               {gameState === 'levelup' ? (
