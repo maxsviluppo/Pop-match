@@ -196,6 +196,16 @@ const EFFECT_COLORS: Record<BallColor, string> = {
   special: '#FFFF00',
 };
 
+const NEON_GLOWS: Record<BallColor, string> = {
+  red: '0 0 15px #FF0055, 0 0 30px rgba(255, 0, 85, 0.6)',
+  blue: '0 0 15px #00D2FF, 0 0 30px rgba(0, 210, 255, 0.6)',
+  yellow: '0 0 15px #FFFF00, 0 0 30px rgba(255, 255, 0, 0.6)',
+  green: '0 0 15px #00FF00, 0 0 30px rgba(0, 255, 0, 0.6)',
+  purple: '0 0 15px #D400FF, 0 0 30px rgba(212, 0, 255, 0.6)',
+  rainbow: '0 0 15px #ffffff, 0 0 30px rgba(255, 255, 255, 0.6)',
+  special: '0 0 15px #FFFF00, 0 0 30px rgba(255, 255, 0, 0.6)',
+};
+
 const COMIC_WORDS = ['POP!', 'ZAP!', 'BAM!', 'WHAM!', 'SNAP!', 'PLOP!', 'Biff!', 'Clonk!', 'Thwack!', 'SPLAT!', 'CRACK!', 'FIZZ!', 'ZIP!', 'BOING!', 'KAPOW!', 'WHIZZ!', 'POOF!', 'BOP!', 'DING!', 'PING!'];
 const BONUS_WORDS = ['POW-WOW!', 'POW!', 'WOW!', 'BOOM!', 'BANG!', 'SMASH!', 'CRUNCH!', 'KRAK!', 'WHACK!', 'ZONK!', 'THUMP!', 'KRUNCH!', 'VROOOM!', 'CLANG!', 'KRAKOOM!', 'WHAMMO!', 'ZOWIE!'];
 const SUPER_WORDS = ['KABOOM!', 'INCREDIBLE!', 'UNSTOPPABLE!', 'MEGA POP!', 'HOLY COW!', 'ULTRA!', 'SUPREME!', 'MONSTER!', 'GODLIKE!', 'EPIC!', 'LEGENDARY!', 'INSANE!', 'COSMIC!', 'ASTONISHING!', 'SPECTACULAR!', 'MIND-BLOWING!'];
@@ -759,127 +769,84 @@ export default function App() {
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-start pt-2 sm:pt-4 p-4 font-sans select-none overflow-hidden relative">
       
-      {/* Header */}
-      <div className={`w-full max-w-md ${gameState === 'home' ? 'mb-12 flex-col items-center text-center' : 'mb-4 flex-row justify-between items-end'} flex z-10 transition-all duration-500`}>
-        <div className={`flex flex-col ${gameState === 'home' ? 'items-center' : ''}`}>
-          <div className="flex items-center gap-2">
-            <h1 className={`font-comic ${gameState === 'home' ? 'text-7xl sm:text-8xl' : 'text-4xl sm:text-5xl'} text-[#ffcc00] comic-text tracking-wider transform -rotate-2 transition-all duration-500 animate-float`}>
-              POP MATCH!
-            </h1>
-            {gameState !== 'home' && (
-              <div className="bg-white/90 backdrop-blur-md px-3 py-1 comic-border rounded-lg transform rotate-3">
-                <span className="font-comic text-xl">LVL {level + 1}</span>
-              </div>
-            )}
-          </div>
+      {/* Header Panel */}
+      <div className={`w-full max-w-md ${gameState === 'home' ? 'mb-8' : 'mb-2'} z-10 flex flex-col items-center gap-2 transition-all duration-500`}>
+        <div className="flex items-center justify-center w-full relative">
+          <h1 className={`font-comic ${gameState === 'home' ? 'text-7xl sm:text-8xl' : 'text-5xl sm:text-6xl'} text-[#ffcc00] comic-text tracking-wider transform -rotate-2 transition-all duration-500 animate-float drop-shadow-[4px_4px_0_rgba(0,0,0,1)]`}>
+            POP MATCH!
+          </h1>
           {gameState !== 'home' && (
-            <div className="flex gap-4 mt-2 items-center">
-              <motion.div 
-                animate={multiplierTurns > 0 ? {
-                  textShadow: ['0px 0px 0px rgba(255,204,0,0)', '0px 0px 10px rgba(255,204,0,1)', '0px 0px 0px rgba(255,204,0,0)']
-                } : {}}
-                transition={{ repeat: Infinity, duration: 1 }}
-                className="font-comic text-xl sm:text-2xl text-white comic-text flex items-center gap-2"
-              >
-                SCORE: 
-                <motion.span
-                  key={score}
-                  initial={{ scale: 1.5, color: multiplierTurns > 0 ? '#ffcc00' : '#ffffff' }}
-                  animate={{ scale: 1, color: '#ffffff' }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-                >
-                  {score}
-                </motion.span>
-                <AnimatePresence>
-                  {multiplierTurns > 0 && (
-                    <motion.span 
-                      initial={{ scale: 0, opacity: 0, rotate: -10 }}
-                      animate={{ scale: [1, 1.1, 1], opacity: 1, rotate: [-5, 5, -5] }}
-                      exit={{ scale: 0, opacity: 0 }}
-                      transition={{ repeat: Infinity, duration: 0.8 }}
-                      className="bg-[#ffcc00] text-black px-2 py-0.5 rounded-lg border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-sm sm:text-base ml-1 tracking-wider"
-                    >
-                      2x ACTIVE!
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-              <div className={`font-comic text-xl sm:text-2xl comic-text ${moves <= 5 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
-                MOVES: {moves}
-              </div>
-            </div>
-          )}
-          {gameState !== 'home' && (
-            <div className="w-full mt-3">
-              <div className={`relative h-6 glass-card rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] ${frenzyTurns > 0 ? 'ring-4 ring-yellow-400 animate-pulse' : ''}`}>
-                <motion.div 
-                  className={`h-full ${frenzyTurns > 0 ? 'bg-gradient-to-r from-yellow-400 via-red-500 to-yellow-400' : 'bg-gradient-to-r from-[#ff3366] via-[#ffcc00] to-[#33ff33]'}`}
-                  initial={{ width: 0 }}
-                  animate={{ 
-                    width: frenzyTurns > 0 ? '100%' : `${comboMeter}%`,
-                    filter: (comboMeter > 70 || frenzyTurns > 0) ? ['brightness(1)', 'brightness(1.3)', 'brightness(1)'] : 'brightness(1)'
-                  }}
-                  transition={{ 
-                    width: { type: 'spring', stiffness: 50, damping: 10 },
-                    filter: { repeat: Infinity, duration: 0.5 }
-                  }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <span className="font-comic text-[10px] sm:text-xs text-black font-bold uppercase tracking-widest drop-shadow-[0_1px_0_rgba(255,255,255,0.5)]">
-                    {frenzyTurns > 0 ? `🔥 FRENZY MODE (${frenzyTurns}T) 🔥` : `COMBO METER ${comboMeter > 0 ? `(${(1 + comboMeter/50).toFixed(1)}X)` : ''}`}
-                  </span>
-                </div>
-              </div>
+            <div className="absolute -top-1 -right-2 bg-white border-2 border-black px-2 py-0.5 rounded transform rotate-12 shadow-[2px_2px_0_0_#000]">
+              <span className="font-comic text-sm sm:text-base">LVL {level + 1}</span>
             </div>
           )}
         </div>
 
         {gameState !== 'home' && (
-          <div className="flex flex-col gap-2 items-end">
-            {/* Controls */}
-            <div className="flex items-center gap-2 bg-white/90 p-1.5 comic-border rounded-lg shadow-sm transform -rotate-1">
-              <button 
-                onClick={goToHome}
-                className="p-1 hover:bg-gray-100 rounded transition-colors"
-                title="Home"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-              </button>
-              <div className="w-px h-4 bg-gray-300 mx-0.5" />
+          <>
+            <div className="w-full grid grid-cols-2 gap-3 mt-2">
+              {/* Score Panel */}
+              <div className="bg-[#ffcc00] border-2 border-black p-1 px-3 transform -rotate-1 shadow-[3px_3px_0_0_#000] flex flex-col">
+                <span className="font-comic text-[10px] uppercase text-black/60 leading-none">Score</span>
+                <div className="flex items-center justify-between">
+                  <span className="font-comic text-xl sm:text-2xl text-black">{score}</span>
+                  {multiplierTurns > 0 && (
+                    <span className="bg-red-500 text-white text-[10px] px-1 rounded animate-pulse">2X!</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Moves Panel */}
+              <div className={`border-2 border-black p-1 px-3 transform rotate-1 shadow-[3px_3px_0_0_#000] flex flex-col ${moves <= 5 ? 'bg-red-500 animate-pulse' : 'bg-white'}`}>
+                <span className="font-comic text-[10px] uppercase opacity-60 leading-none">Moves Left</span>
+                <span className={`font-comic text-xl sm:text-2xl ${moves <= 5 ? 'text-white' : 'text-black'}`}>{moves}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-row gap-2 items-center w-full mt-2">
+              {/* Combo Meter */}
+              <div className="flex-1">
+                <div className={`relative h-5 glass-card rounded-lg overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] ${frenzyTurns > 0 ? 'ring-2 ring-yellow-400' : ''}`}>
+                  <motion.div 
+                    className={`h-full ${frenzyTurns > 0 ? 'bg-gradient-to-r from-yellow-400 via-red-500 to-yellow-400' : 'bg-gradient-to-r from-[#FF0055] via-[#FFFF00] to-[#00FF00]'}`}
+                    initial={{ width: 0 }}
+                    animate={{ 
+                      width: frenzyTurns > 0 ? '100%' : `${comboMeter}%`,
+                    }}
+                    transition={{ width: { type: 'spring', stiffness: 50, damping: 10 } }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="font-comic text-[8px] sm:text-[10px] text-black font-bold uppercase tracking-widest">
+                      {frenzyTurns > 0 ? `FRENZY MODE!` : `COMBO`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Targets Mini Panel */}
+              <div className="flex items-center gap-2 bg-white/90 p-1 px-2 border-2 border-black shadow-[2px_2px_0_0_#000] rounded transform rotate-1">
+                <span className="font-comic text-[10px] uppercase mr-1">TGT:</span>
+                {Object.entries(targets).map(([color, count]) => (
+                  <div key={color} className="flex items-center gap-1">
+                    <div className={`w-3 h-3 rounded-full border border-black ${COLOR_CLASSES[color as BallColor]}`} />
+                    <span className="font-comic text-xs">{count}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Mute Button */}
               <button 
                 onClick={handleToggleMute}
-                className="p-1 hover:bg-gray-100 rounded transition-colors"
-                title={muted ? "Unmute" : "Mute"}
+                className="p-1.5 bg-white border-2 border-black rounded shadow-[2px_2px_0_0_#000] active:translate-y-0.5 active:shadow-none transition-all"
               >
                 {muted ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-red-500"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-black"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
                 )}
               </button>
             </div>
-
-            {/* Targets */}
-            <div className="flex items-center gap-3 glass-card p-2 sm:p-3 rounded-xl transform rotate-1 shadow-lg min-w-[140px] justify-center relative">
-              <div className="absolute -top-3 left-2 bg-black text-white text-[10px] px-2 py-0.5 rounded font-comic uppercase tracking-tighter">
-                Targets
-              </div>
-              {Object.entries(targets).map(([color, count]) => {
-                const isCompleted = count === 0;
-                return (
-                  <div key={color} className="flex flex-col items-center relative">
-                    <motion.div 
-                      animate={isCompleted ? { scale: [1, 1.2, 1] } : {}}
-                      className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-black ${COLOR_CLASSES[color as BallColor]} ${isCompleted ? 'opacity-40' : 'shadow-sm'}`} 
-                    />
-                    <span className={`font-comic text-lg sm:text-xl leading-none mt-1 ${isCompleted ? 'text-green-500 font-bold' : 'text-black'}`}>
-                      {isCompleted ? '✓' : count}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          </>
         )}
       </div>
 
@@ -905,31 +872,28 @@ export default function App() {
             </div>
           </div>
 
-          <h2 className="font-comic text-4xl mb-2 comic-text text-black uppercase">READY TO POP?</h2>
-          <div className="bg-gray-100 px-4 py-1 rounded-full comic-border mb-6">
-            <span className="font-comic text-xl text-gray-600">CURRENT LEVEL: {level + 1}</span>
+          <div className="bg-red-500 text-white px-4 py-1 rounded-sm border-2 border-black shadow-[4px_4px_0_0_#000] mb-6 transform -rotate-2">
+            <span className="font-comic text-xl uppercase tracking-widest">LEVEL {level + 1} START!</span>
           </div>
           
           <div className="space-y-4 mb-8 text-left w-full">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-xs">1</div>
-              <p className="font-comic text-lg">Connect 3+ same colors</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-xs">2</div>
-              <p className="font-comic text-lg">Reach targets before moves end</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-xs">3</div>
-              <p className="font-comic text-lg">Connect 6+ for BIG BONUS!</p>
+            <div className="bg-white border-2 border-black p-3 transform rotate-1 shadow-[4px_4px_0_0_#000] relative">
+              <div className="absolute -top-3 -left-2 bg-blue-500 text-white text-[10px] px-2 py-0.5 border-2 border-black font-comic uppercase">Mission</div>
+              <p className="font-comic text-lg leading-tight">Connect 3+ same colors! Hit targets before moves end! 10+ combo for extra moves!</p>
             </div>
           </div>
 
           <button 
             onClick={startGame}
-            className="bg-[#ffcc00] text-black font-comic text-4xl py-4 px-12 rounded-full comic-border hover:bg-[#ffe066] hover:-translate-y-1 active:translate-y-1 transition-all w-full"
+            className="relative group cursor-pointer"
           >
-            START GAME
+            <div className="absolute inset-0 bg-black rounded-full transform translate-x-1 translate-y-1" />
+            <div className="bg-[#ffcc00] text-black font-comic text-4xl py-5 px-14 rounded-full border-4 border-black hover:-translate-y-1 hover:-translate-x-1 active:translate-y-1 active:translate-x-1 transition-all relative">
+              START GAME
+            </div>
+            <div className="absolute -top-4 -right-4 bg-red-500 text-white p-2 rounded-full border-2 border-black transform rotate-12 group-hover:scale-110 transition-transform">
+              <span className="font-comic text-xl">GO!</span>
+            </div>
           </button>
         </motion.div>
       ) : (
@@ -947,22 +911,6 @@ export default function App() {
               gridTemplateRows: `repeat(${ROWS}, minmax(0, 1fr))`
             }}
           >
-            {/* Frenzy Overlay Text */}
-            <AnimatePresence>
-              {frenzyTurns > 0 && (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.5, rotate: -10 }}
-                  animate={{ opacity: 0.2, scale: 1.2, rotate: 10 }}
-                  exit={{ opacity: 0, scale: 2 }}
-                  transition={{ repeat: Infinity, repeatType: 'reverse', duration: 0.5 }}
-                  className="absolute inset-0 flex items-center justify-center pointer-events-none z-0"
-                >
-                  <span className="font-comic text-8xl text-yellow-400 comic-text opacity-30 select-none">
-                    FRENZY!
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {grid.map((row, r) => 
               row.map((ball, c) => (
@@ -986,7 +934,9 @@ export default function App() {
                           scale: 0, 
                           rotate: 0,
                           opacity: 0,
-                          transition: { duration: 0.25 }
+                          boxShadow: ball ? NEON_GLOWS[ball.color] : 'none',
+                          filter: 'brightness(1.5)',
+                          transition: { duration: 0.3 }
                         }}
                         transition={{ 
                           type: 'spring', 
@@ -1003,6 +953,9 @@ export default function App() {
                           ${(ball.color === 'rainbow' || ball.color === 'special') ? 'animate-pulse' : ''}
                           ${isDragging && isAdjacentToLast(r, c) && (ball.color === 'rainbow' || ball.color === 'special' || !chainColor || ball.color === chainColor) ? 'ring-4 ring-white ring-opacity-70 scale-105' : ''}
                         `}
+                        style={{
+                          boxShadow: isSelected(r, c) ? NEON_GLOWS[ball.color] : 'none'
+                        }}
                       >
                         <motion.div 
                           className="absolute inset-0 rounded-full"
